@@ -34,9 +34,6 @@ namespace HEOSNet
             return new HeosResponse(responseString);
         }
 
-        public async Task<IEnumerable<IPAddress>> DiscoverHeosDevicesAsync(TimeSpan timeout)
-        {
-            return await HeosDiscovery.DiscoverDevices(timeout);
-        }
+        
     }
 }
