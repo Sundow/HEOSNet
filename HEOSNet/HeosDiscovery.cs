@@ -8,11 +8,7 @@ namespace HEOSNet
     {
         private const string SsdpMulticastAddress = "239.255.255.250";
         private const int SsdpPort = 1900;
-        private const string SsdpSearchRequest = @"M-SEARCH * HTTP/1.1
-                                                 HOST: 239.255.255.250:1900
-                                                 MAN: ""ssdp:discover""
-                                                 MX: 3
-                                                 ST: urn:schemas-denon-com:device:ACT-Denon:1";
+        private const string SsdpSearchRequest = "M-SEARCH * HTTP/1.1\r\nHost: 239.255.255.250:1900\r\nMan: \"ssdp:discover\"\r\nST: urn:schemas-denon-com:device:ACT-Denon:1\r\nMX: 3\r\n\r\n";
 
         public static async Task<IEnumerable<IPAddress>> DiscoverDevices(TimeSpan timeout)
         {
@@ -31,39 +27,35 @@ namespace HEOSNet
                 await udpClient.SendAsync(requestBytes, requestBytes.Length, remoteEndPoint);
 
                 DateTime startTime = DateTime.Now;
-                while (DateTime.Now - startTime < timeout)
-                {
-                    try
-                    {
-                        UdpReceiveResult result = await udpClient.ReceiveAsync().WithTimeout(timeout - (DateTime.Now - startTime));
-                        string response = Encoding.UTF8.GetString(result.Buffer);
 
-                        if (response.Contains("HEOS") && response.Contains("LOCATION:"))
+                try
+                {
+                    UdpReceiveResult result = await udpClient.ReceiveAsync().WithTimeout(timeout - (DateTime.Now - startTime));
+                    string response = Encoding.UTF8.GetString(result.Buffer);
+
+                    if (response.Contains("HEOS") && response.Contains("LOCATION:"))
+                    {
+                        string? locationLine = response.Split([ '\n' ], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(line => line.StartsWith("LOCATION:", StringComparison.OrdinalIgnoreCase));
+                        if (locationLine != null)
                         {
-                            string? locationLine = response.Split([ ',' ], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(line => line.StartsWith("LOCATION:", StringComparison.OrdinalIgnoreCase));
-                            if (locationLine != null)
+                            string locationUrl = locationLine["LOCATION:".Length..].Trim();
+                            if (Uri.TryCreate(locationUrl, UriKind.Absolute, out Uri? uri))
                             {
-                                string locationUrl = locationLine["LOCATION:".Length..].Trim();
-                                if (Uri.TryCreate(locationUrl, UriKind.Absolute, out Uri? uri))
+                                if (IPAddress.TryParse(uri.Host, out IPAddress? ipAddress))
                                 {
-                                    if (IPAddress.TryParse(uri.Host, out IPAddress? ipAddress))
-                                    {
-                                        discoveredDevices.Add(ipAddress);
-                                    }
+                                    discoveredDevices.Add(ipAddress);
                                 }
                             }
                         }
                     }
-                    catch (TimeoutException)
-                    {
-                        // Timeout occurred, stop listening
-                        break;
-                    }
-                    catch (SocketException)
-                    {
-                        // Socket error, likely due to timeout or network issue
-                        break;
-                    }
+                }
+                catch (TimeoutException)
+                {
+                    // Timeout occurred, stop listening
+                }
+                catch (SocketException)
+                {
+                    // Socket error, likely due to timeout or network issue
                 }
 
                 udpClient.DropMulticastGroup(multicastAddress);
@@ -73,7 +65,7 @@ namespace HEOSNet
         }
     }
 
-    public static class TaskExtensions
+    internal static class TaskExtensions
     {
         public static async Task<T> WithTimeout<T>(this Task<T> task, TimeSpan timeout)
         {
