@@ -1,18 +1,10 @@
-
 namespace HEOSNet
 {
-    public class HeosCommand
+    public class HeosCommand(string commandGroup, string command, Dictionary<string, string>? parameters = null)
     {
-        public string CommandGroup { get; }
-        public string Command { get; }
-        public Dictionary<string, string> Parameters { get; }
-
-        public HeosCommand(string commandGroup, string command, Dictionary<string, string>? parameters = null)
-        {
-            CommandGroup = commandGroup;
-            Command = command;
-            Parameters = parameters ?? [];
-        }
+        public string CommandGroup { get; } = commandGroup;
+        public string Command { get; } = command;
+        public Dictionary<string, string> Parameters { get; } = parameters ?? [];
 
         public override string ToString()
         {

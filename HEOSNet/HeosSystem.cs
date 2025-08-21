@@ -1,5 +1,3 @@
-using System.Net;
-
 namespace HEOSNet
 {
     public class HeosSystem(HeosClient client)
@@ -33,7 +31,5 @@ namespace HEOSNet
             var responseString = await _client.SendCommandAsync(command.ToString());
             return new HeosResponse(responseString);
         }
-
-        
     }
 }

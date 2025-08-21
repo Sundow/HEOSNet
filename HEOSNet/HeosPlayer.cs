@@ -1,14 +1,8 @@
-
 namespace HEOSNet
 {
-    public class HeosPlayer
+    public class HeosPlayer(HeosClient client)
     {
-        private readonly HeosClient _client;
-
-        public HeosPlayer(HeosClient client)
-        {
-            _client = client;
-        }
+        private readonly HeosClient _client = client;
 
         public async Task<HeosResponse> GetPlayersAsync()
         {

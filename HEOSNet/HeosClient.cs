@@ -3,18 +3,12 @@ using System.Text;
 
 namespace HEOSNet
 {
-    public class HeosClient
+    public class HeosClient(string host, int port = 1255)
     {
-        private readonly string _host;
-        private readonly int _port;
+        private readonly string _host = host;
+        private readonly int _port = port;
         private TcpClient? _client;
         private NetworkStream? _stream;
-
-        public HeosClient(string host, int port = 1255)
-        {
-            _host = host;
-            _port = port;
-        }
 
         public async Task ConnectAsync()
         {
