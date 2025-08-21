@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Net;
 using System.Windows;
+using System.Windows.Input;
 
 namespace HEOSNet.TestClient.WPF;
 
@@ -24,7 +25,7 @@ public partial class MainWindow : Window
 
         try
         {
-            IEnumerable<IPAddress> devices = await HeosDiscovery.DiscoverDevices(TimeSpan.FromSeconds(60));
+            IEnumerable<IPAddress> devices = await HeosDiscovery.DiscoverDevices(TimeSpan.FromSeconds(20));
 
             _discoveredDevices.Clear();
             if (devices != null && devices.Any())
@@ -43,6 +44,15 @@ public partial class MainWindow : Window
         {
             _discoveredDevices.Clear();
             _discoveredDevices.Add($"Error during discovery: {ex.Message}");
+        }
+    }
+
+    private void DiscoveredDevicesListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (DiscoveredDevicesListBox.SelectedItem is string selectedDeviceIp)
+        {
+            var deviceControlWindow = new DeviceControlWindow(selectedDeviceIp);
+            deviceControlWindow.Show();
         }
     }
 }

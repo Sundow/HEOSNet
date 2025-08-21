@@ -13,6 +13,6 @@
         </Grid.RowDefinitions>
 
         <Button Content="Discover HEOS Devices" Grid.Row="0" Margin="10" Click="DiscoverDevices_Click"/>
-        <ListBox x:Name="DiscoveredDevicesListBox" Grid.Row="1" Margin="10"/>
+        <ListBox x:Name="DiscoveredDevicesListBox" Grid.Row="1" Margin="10" MouseDoubleClick="DiscoveredDevicesListBox_MouseDoubleClick"/>
     </Grid>
 </Window>
