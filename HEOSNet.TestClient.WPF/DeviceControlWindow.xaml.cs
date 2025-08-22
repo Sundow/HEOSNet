@@ -1,4 +1,3 @@
-
 using System.Windows;
 using HEOSNet;
 
@@ -9,7 +8,7 @@ namespace HEOSNet.TestClient.WPF
         private readonly string _host;
         private HeosClient _client;
         private HeosPlayer _player;
-        private string? _pid;
+        private int? _pid;
 
         public DeviceControlWindow(string host)
         {
@@ -28,24 +27,24 @@ namespace HEOSNet.TestClient.WPF
                 var players = playersResponse.Payload.Value.EnumerateArray();
                 if (players.Any())
                 {
-                    _pid = players.First().GetProperty("pid").GetString();
+                    _pid = players.First().GetProperty("pid").GetInt32();
                 }
             }
         }
 
         private async void PowerOnButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_pid != null)
+            if (_pid.HasValue)
             {
-                await _player.SetPlayStateAsync(_pid, "play");
+                await _player.SetPlayStateAsync(_pid.Value, "play");
             }
         }
 
         private async void PowerOffButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_pid != null)
+            if (_pid.HasValue)
             {
-                await _player.SetPlayStateAsync(_pid, "pause");
+                await _player.SetPlayStateAsync(_pid.Value, "pause");
             }
         }
 
