@@ -36,7 +36,7 @@ namespace HEOSNet.Tests
         public async Task GetPlayStateAsync_SendsCorrectCommand()
         {
             // Arrange
-            var pid = "12345";
+            var pid = 12345;
             _mockClient!.Setup(c => c.SendCommandAsync(It.IsAny<string>()))
                        .ReturnsAsync($"{{\"heos\": {{\"command\": \"player/get_play_state?pid={pid}\", \"result\": \"success\", \"message\": \"\"}}, \"payload\": {{\"state\": \"play\"}}}}");
 
@@ -52,7 +52,7 @@ namespace HEOSNet.Tests
         public async Task SetPlayStateAsync_SendsCorrectCommand()
         {
             // Arrange
-            var pid = "12345";
+            var pid = 12345;
             var state = "play";
             _mockClient!.Setup(c => c.SendCommandAsync(It.IsAny<string>()))
                        .ReturnsAsync($"{{\"heos\": {{\"command\": \"player/set_play_state?pid={pid}&state={state}\", \"result\": \"success\", \"message\": \"\"}}}}");
@@ -69,7 +69,7 @@ namespace HEOSNet.Tests
         public async Task GetVolumeAsync_SendsCorrectCommand()
         {
             // Arrange
-            var pid = "12345";
+            var pid = 12345;
             _mockClient!.Setup(c => c.SendCommandAsync(It.IsAny<string>()))
                        .ReturnsAsync($"{{\"heos\": {{\"command\": \"player/get_volume?pid={pid}\", \"result\": \"success\", \"message\": \"\"}}, \"payload\": {{\"level\": 50}}}}");
 
@@ -85,7 +85,7 @@ namespace HEOSNet.Tests
         public async Task SetVolumeAsync_SendsCorrectCommand()
         {
             // Arrange
-            var pid = "12345";
+            var pid = 12345;
             var volume = 60;
             _mockClient!.Setup(c => c.SendCommandAsync(It.IsAny<string>()))
                        .ReturnsAsync($"{{\"heos\": {{\"command\": \"player/set_volume?pid={pid}&level={volume}\", \"result\": \"success\", \"message\": \"\"}}}}");
@@ -102,7 +102,7 @@ namespace HEOSNet.Tests
         public async Task SetMuteAsync_SendsCorrectCommand()
         {
             // Arrange
-            var pid = "12345";
+            var pid = 12345;
             var mute = true;
             _mockClient!.Setup(c => c.SendCommandAsync(It.IsAny<string>()))
                        .ReturnsAsync($"{{\"heos\": {{\"command\": \"player/set_mute?pid={pid}&state=on\", \"result\": \"success\", \"message\": \"\"}}}}");
@@ -119,7 +119,7 @@ namespace HEOSNet.Tests
         public async Task GetMuteAsync_SendsCorrectCommand()
         {
             // Arrange
-            var pid = "12345";
+            var pid = 12345;
             _mockClient!.Setup(c => c.SendCommandAsync(It.IsAny<string>()))
                        .ReturnsAsync($"{{\"heos\": {{\"command\": \"player/get_mute?pid={pid}\", \"result\": \"success\", \"message\": \"\"}}, \"payload\": {{\"state\": \"on\"}}}}");
 
