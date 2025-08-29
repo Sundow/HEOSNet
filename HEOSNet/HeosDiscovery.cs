@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 
@@ -14,9 +15,12 @@ namespace HEOSNet
         {
             List<IPAddress> discoveredDevices = [];
 
+            NetworkInterface? networkInterface = GetActiveNetworkInterface() ?? throw new Exception("No active network interface found.");
+            IPAddress? ipAddress = (networkInterface.GetIPProperties().UnicastAddresses
+                .FirstOrDefault(ua => ua.Address.AddressFamily == AddressFamily.InterNetwork)?.Address) ?? throw new Exception("No suitable IPv4 address found on the active network interface.");
             using (UdpClient udpClient = new())
             {
-                udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, 0)); // Bind to any available port
+                udpClient.Client.Bind(new IPEndPoint(ipAddress, 0)); // Bind to specific interface's IP address
 
                 IPAddress multicastAddress = IPAddress.Parse(SsdpMulticastAddress);
                 udpClient.JoinMulticastGroup(multicastAddress);
@@ -26,30 +30,31 @@ namespace HEOSNet
 
                 await udpClient.SendAsync(requestBytes, requestBytes.Length, remoteEndPoint);
 
-                DateTime startTime = DateTime.Now;
-
                 try
                 {
-                    UdpReceiveResult result = await udpClient.ReceiveAsync().WithTimeout(timeout - (DateTime.Now - startTime));
-                    string response = Encoding.UTF8.GetString(result.Buffer);
-
-                    if (response.Contains("HEOS") && response.Contains("LOCATION:"))
+                    using (CancellationTokenSource cts = new(timeout))
                     {
-                        string? locationLine = response.Split([ '\n' ], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(line => line.StartsWith("LOCATION:", StringComparison.OrdinalIgnoreCase));
-                        if (locationLine != null)
+                        UdpReceiveResult result = await udpClient.ReceiveAsync(cts.Token);
+                        string response = Encoding.UTF8.GetString(result.Buffer);
+
+                        if (response.Contains("HEOS") && response.Contains("LOCATION:"))
                         {
-                            string locationUrl = locationLine["LOCATION:".Length..].Trim();
-                            if (Uri.TryCreate(locationUrl, UriKind.Absolute, out Uri? uri))
+                            string? locationLine = response.Split([ '\n' ], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(line => line.StartsWith("LOCATION:", StringComparison.OrdinalIgnoreCase));
+                            if (locationLine != null)
                             {
-                                if (IPAddress.TryParse(uri.Host, out IPAddress? ipAddress))
+                                string locationUrl = locationLine["LOCATION:".Length..].Trim();
+                                if (Uri.TryCreate(locationUrl, UriKind.Absolute, out Uri? uri))
                                 {
-                                    discoveredDevices.Add(ipAddress);
+                                    if (IPAddress.TryParse(uri.Host, out IPAddress? discoveredIpAddress))
+                                    {
+                                        discoveredDevices.Add(discoveredIpAddress);
+                                    }
                                 }
                             }
                         }
                     }
                 }
-                catch (TimeoutException)
+                catch (OperationCanceledException)
                 {
                     // Timeout occurred, stop listening
                 }
@@ -63,20 +68,14 @@ namespace HEOSNet
 
             return discoveredDevices.Distinct();
         }
-    }
 
-    internal static class TaskExtensions
-    {
-        public static async Task<T> WithTimeout<T>(this Task<T> task, TimeSpan timeout)
+        private static NetworkInterface? GetActiveNetworkInterface()
         {
-            if (task == await Task.WhenAny(task, Task.Delay(timeout)))
-            {
-                return await task;
-            }
-            else
-            {
-                throw new TimeoutException();
-            }
+            return NetworkInterface.GetAllNetworkInterfaces()
+                .FirstOrDefault(ni =>
+                    ni.OperationalStatus == OperationalStatus.Up &&
+                    (ni.NetworkInterfaceType == NetworkInterfaceType.Wireless80211 || ni.NetworkInterfaceType == NetworkInterfaceType.Ethernet) &&
+                    ni.GetIPProperties().UnicastAddresses.Any(ua => ua.Address.AddressFamily == AddressFamily.InterNetwork));
         }
     }
 }
