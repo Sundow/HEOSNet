@@ -5,12 +5,17 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:HEOSNet.TestClient.WPF"
         mc:Ignorable="d"
-        Title="Device Control" Height="150" Width="300"
+        Title="Device Control" Height="300" Width="300"
         Loaded="Window_Loaded" Closed="Window_Closed">
     <Grid>
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
             <Button x:Name="PowerOnButton" Content="Power On" Width="100" Margin="5" Click="PowerOnButton_Click"/>
-            <Button x:Name="PowerOffButton" Content="Power Off" Width="100" Margin="5" Click="PowerOffButton_Click"/>
+            <Button x:Name="StandbyButton" Content="Standby" Width="100" Margin="5" Click="StandbyButton_Click"/>
+            <Button x:Name="PlayButton" Content="Play" Width="100" Margin="5" Click="PlayButton_Click"/>
+            <Button x:Name="VolumeUpButton" Content="Volume Up" Width="100" Margin="5" Click="VolumeUpButton_Click"/>
+            <Button x:Name="VolumeDownButton" Content="Volume Down" Width="100" Margin="5" Click="VolumeDownButton_Click"/>
+            <Button x:Name="MuteOnButton" Content="Mute" Width="100" Margin="5" Click="MuteOnButton_Click"/>
+            <Button x:Name="MuteOffButton" Content="Unmute" Width="100" Margin="5" Click="MuteOffButton_Click"/>
         </StackPanel>
     </Grid>
 </Window>

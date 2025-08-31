@@ -1,3 +1,4 @@
+
 using System.Windows;
 using HEOSNet;
 
@@ -8,6 +9,7 @@ namespace HEOSNet.TestClient.WPF
         private readonly string _host;
         private HeosClient _client;
         private HeosPlayer _player;
+        private HeosTelnetClient _telnetClient;
         private int? _pid;
 
         public DeviceControlWindow(string host)
@@ -16,6 +18,7 @@ namespace HEOSNet.TestClient.WPF
             _host = host;
             _client = new HeosClient(_host);
             _player = new HeosPlayer(_client);
+            _telnetClient = new HeosTelnetClient(_host);
         }
 
         private async void Window_Loaded(object sender, RoutedEventArgs e)
@@ -34,18 +37,40 @@ namespace HEOSNet.TestClient.WPF
 
         private async void PowerOnButton_Click(object sender, RoutedEventArgs e)
         {
+            await _telnetClient.PowerOnAsync();
+        }
+
+        private async void StandbyButton_Click(object sender, RoutedEventArgs e)
+        {
+            await _telnetClient.PowerStandbyAsync();
+        }
+
+        private async void PlayButton_Click(object sender, RoutedEventArgs e)
+        {
             if (_pid.HasValue)
             {
                 await _player.SetPlayStateAsync(_pid.Value, "play");
             }
         }
 
-        private async void PowerOffButton_Click(object sender, RoutedEventArgs e)
+        private async void VolumeUpButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_pid.HasValue)
-            {
-                await _player.SetPlayStateAsync(_pid.Value, "pause");
-            }
+            await _telnetClient.VolumeUpAsync();
+        }
+
+        private async void VolumeDownButton_Click(object sender, RoutedEventArgs e)
+        {
+            await _telnetClient.VolumeDownAsync();
+        }
+
+        private async void MuteOnButton_Click(object sender, RoutedEventArgs e)
+        {
+            await _telnetClient.MuteOnAsync();
+        }
+
+        private async void MuteOffButton_Click(object sender, RoutedEventArgs e)
+        {
+            await _telnetClient.MuteOffAsync();
         }
 
         private void Window_Closed(object sender, System.EventArgs e)
@@ -54,3 +79,4 @@ namespace HEOSNet.TestClient.WPF
         }
     }
 }
+
