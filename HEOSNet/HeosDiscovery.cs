@@ -69,13 +69,11 @@ namespace HEOSNet
             return discoveredDevices.Distinct();
         }
 
-        private static NetworkInterface? GetActiveNetworkInterface()
-        {
-            return NetworkInterface.GetAllNetworkInterfaces()
+        private static NetworkInterface? GetActiveNetworkInterface() =>
+            NetworkInterface.GetAllNetworkInterfaces()
                 .FirstOrDefault(ni =>
                     ni.OperationalStatus == OperationalStatus.Up &&
                     (ni.NetworkInterfaceType == NetworkInterfaceType.Wireless80211 || ni.NetworkInterfaceType == NetworkInterfaceType.Ethernet) &&
                     ni.GetIPProperties().UnicastAddresses.Any(ua => ua.Address.AddressFamily == AddressFamily.InterNetwork));
-        }
     }
 }

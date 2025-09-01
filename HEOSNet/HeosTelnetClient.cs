@@ -14,39 +14,21 @@ namespace HEOSNet
             _host = host;
         }
 
-        public async Task PowerOnAsync()
-        {
-            await SendCommandAsync("PWON");
-        }
+        public Task PowerOnAsync() => SendCommandAsync("PWON");
 
-        public async Task PowerStandbyAsync()
-        {
-            await SendCommandAsync("PWSTANDBY");
-        }
+        public Task PowerStandbyAsync() => SendCommandAsync("PWSTANDBY");
 
-        public async Task VolumeUpAsync()
-        {
-            await SendCommandAsync("MVUP");
-        }
+        public Task VolumeUpAsync() => SendCommandAsync("MVUP");
 
-        public async Task VolumeDownAsync()
-        {
-            await SendCommandAsync("MVDOWN");
-        }
+        public Task VolumeDownAsync() => SendCommandAsync("MVDOWN");
 
-        public async Task MuteOnAsync()
-        {
-            await SendCommandAsync("MUON");
-        }
+        public Task MuteOnAsync() => SendCommandAsync("MUON");
 
-        public async Task MuteOffAsync()
-        {
-            await SendCommandAsync("MUOFF");
-        }
+        public Task MuteOffAsync() => SendCommandAsync("MUOFF");
 
         public async Task SendCommandAsync(string command)
         {
-            using (var tcpClient = new TcpClient())
+            using (TcpClient tcpClient = new())
             {
                 await tcpClient.ConnectAsync(_host, _port);
                 using (var stream = tcpClient.GetStream())

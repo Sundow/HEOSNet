@@ -6,28 +6,28 @@ namespace HEOSNet
 
         public async Task<HeosResponse> HeartbeatAsync()
         {
-            var command = new HeosCommand("system", "heart_beat");
+            HeosCommand command = new("system", "heart_beat");
             var responseString = await _client.SendCommandAsync(command.ToString());
             return new HeosResponse(responseString);
         }
 
         public async Task<HeosResponse> RebootAsync()
         {
-            var command = new HeosCommand("system", "reboot");
+            HeosCommand command = new("system", "reboot");
             var responseString = await _client.SendCommandAsync(command.ToString());
             return new HeosResponse(responseString);
         }
 
         public async Task<HeosResponse> GetPlayersAsync()
         {
-            var command = new HeosCommand("player", "get_players");
+            HeosCommand command = new("player", "get_players");
             var responseString = await _client.SendCommandAsync(command.ToString());
             return new HeosResponse(responseString);
         }
 
         public async Task<HeosResponse> GetAccountStateAsync()
         {
-            var command = new HeosCommand("system", "check_account");
+            HeosCommand command = new("system", "check_account");
             var responseString = await _client.SendCommandAsync(command.ToString());
             return new HeosResponse(responseString);
         }
