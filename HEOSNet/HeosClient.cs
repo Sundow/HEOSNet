@@ -36,5 +36,18 @@ namespace HEOSNet
             _stream?.Close();
             _client?.Close();
         }
+
+        public async Task SendTelnetCommandAsync(string command)
+        {
+            using (TcpClient tcpClient = new())
+            {
+                await tcpClient.ConnectAsync(_host, 23);
+                using (var stream = tcpClient.GetStream())
+                {
+                    var data = Encoding.ASCII.GetBytes(command + "\r\n");
+                    await stream.WriteAsync(data, 0, data.Length);
+                }
+            }
+        }
     }
 }

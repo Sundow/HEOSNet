@@ -9,7 +9,7 @@ namespace HEOSNet.TestClient.WPF
         private readonly string _host;
         private HeosClient _client;
         private HeosPlayer _player;
-        private HeosTelnetClient _telnetClient;
+        
         private int? _pid;
 
         public DeviceControlWindow(string host)
@@ -18,7 +18,7 @@ namespace HEOSNet.TestClient.WPF
             _host = host;
             _client = new HeosClient(_host);
             _player = new HeosPlayer(_client);
-            _telnetClient = new HeosTelnetClient(_host);
+            
         }
 
         private async void Window_Loaded(object sender, RoutedEventArgs e)
@@ -37,12 +37,12 @@ namespace HEOSNet.TestClient.WPF
 
         private async void PowerOnButton_Click(object sender, RoutedEventArgs e)
         {
-            await _telnetClient.PowerOnAsync();
+            await _player.PowerOnAsync();
         }
 
         private async void StandbyButton_Click(object sender, RoutedEventArgs e)
         {
-            await _telnetClient.PowerStandbyAsync();
+            await _player.PowerStandbyAsync();
         }
 
         private async void PlayButton_Click(object sender, RoutedEventArgs e)
@@ -55,22 +55,22 @@ namespace HEOSNet.TestClient.WPF
 
         private async void VolumeUpButton_Click(object sender, RoutedEventArgs e)
         {
-            await _telnetClient.VolumeUpAsync();
+            await _player.VolumeUpAsync();
         }
 
         private async void VolumeDownButton_Click(object sender, RoutedEventArgs e)
         {
-            await _telnetClient.VolumeDownAsync();
+            await _player.VolumeDownAsync();
         }
 
         private async void MuteOnButton_Click(object sender, RoutedEventArgs e)
         {
-            await _telnetClient.MuteOnAsync();
+            await _player.MuteOnAsync();
         }
 
         private async void MuteOffButton_Click(object sender, RoutedEventArgs e)
         {
-            await _telnetClient.MuteOffAsync();
+            await _player.MuteOffAsync();
         }
 
         private void Window_Closed(object sender, System.EventArgs e)

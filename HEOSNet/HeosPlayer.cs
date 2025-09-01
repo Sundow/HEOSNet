@@ -1,3 +1,6 @@
+using System.Net.Sockets;
+using System.Text;
+
 namespace HEOSNet
 {
     public class HeosPlayer(HeosClient client)
@@ -52,5 +55,17 @@ namespace HEOSNet
             var responseString = await _client.SendCommandAsync(command.ToString());
             return new HeosResponse(responseString);
         }
+
+        public Task PowerOnAsync() => _client.SendTelnetCommandAsync("PWON");
+
+        public Task PowerStandbyAsync() => _client.SendTelnetCommandAsync("PWSTANDBY");
+
+        public Task VolumeUpAsync() => _client.SendTelnetCommandAsync("MVUP");
+
+        public Task VolumeDownAsync() => _client.SendTelnetCommandAsync("MVDOWN");
+
+        public Task MuteOnAsync() => _client.SendTelnetCommandAsync("MUON");
+
+        public Task MuteOffAsync() => _client.SendTelnetCommandAsync("MUOFF");
     }
 }
