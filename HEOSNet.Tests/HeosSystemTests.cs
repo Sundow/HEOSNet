@@ -1,4 +1,3 @@
-using HEOSNet;
 using Moq;
 
 namespace HEOSNet.Tests
