@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Net;
 using System.Windows;
 using System.Windows.Input;
 
@@ -10,7 +9,7 @@ namespace HEOSNet.TestClient.WPF;
 /// </summary>
 public partial class MainWindow : Window
 {
-    private ObservableCollection<string> _discoveredDevices = [];
+    private ObservableCollection<HeosDevice> _discoveredDevices = [];
 
     public MainWindow()
     {
@@ -21,37 +20,36 @@ public partial class MainWindow : Window
     private async void DiscoverDevices_Click(object sender, RoutedEventArgs e)
     {
         _discoveredDevices.Clear();
-        _discoveredDevices.Add("Searching for HEOS devices...");
 
         try
         {
-            IEnumerable<IPAddress> devices = await HeosDiscovery.DiscoverDevices(TimeSpan.FromSeconds(20));
+            IEnumerable<HeosDevice> devices = await HeosDiscovery.DiscoverDevices(TimeSpan.FromSeconds(20));
 
             _discoveredDevices.Clear();
             if (devices != null && devices.Any())
             {
                 foreach (var device in devices)
                 {
-                    _discoveredDevices.Add(device.ToString());
+                    _discoveredDevices.Add(device);
                 }
             }
             else
             {
-                _discoveredDevices.Add("No HEOS devices found.");
+                MessageBox.Show("No HEOS devices found.");
             }
         }
         catch (Exception ex)
         {
             _discoveredDevices.Clear();
-            _discoveredDevices.Add($"Error during discovery: {ex.Message}");
+            MessageBox.Show($"Error during discovery: {ex.Message}");
         }
     }
 
     private void DiscoveredDevicesListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (DiscoveredDevicesListBox.SelectedItem is string selectedDeviceIp)
+        if (DiscoveredDevicesListBox.SelectedItem is HeosDevice selectedDevice)
         {
-            var deviceControlWindow = new DeviceControlWindow(selectedDeviceIp);
+            var deviceControlWindow = new DeviceControlWindow(selectedDevice.IpAddress.ToString());
             deviceControlWindow.Show();
         }
     }
