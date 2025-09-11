@@ -12,16 +12,16 @@ namespace HEOSNet
         private const int SsdpPort = 1900;
         private const string SsdpSearchRequest = "M-SEARCH * HTTP/1.1\r\nHost: 239.255.255.250:1900\r\nMan: \"ssdp:discover\"\r\nST: urn:schemas-denon-com:device:ACT-Denon:1\r\nMX: 3\r\n\r\n";
 
-        public static async Task<IEnumerable<HeosDevice>> DiscoverDevices(TimeSpan timeout)
+        public static async Task<IEnumerable<HeosDevice>> DiscoverDevicesAsync(TimeSpan timeout)
         {
             List<HeosDevice> heosDevices = [];
-            IEnumerable<IPAddress> discoveredIps = await DiscoverDeviceIps(timeout);
+            IEnumerable<IPAddress> discoveredIps = await DiscoverDeviceIpsAsync(timeout);
 
             foreach (IPAddress ipAddress in discoveredIps)
             {
                 try
                 {
-                    HeosDevice heosDevice = await GetDeviceDetails(ipAddress);
+                    HeosDevice heosDevice = await GetDeviceDetailsAsync(ipAddress);
                     heosDevices.Add(heosDevice);
                 }
                 catch (Exception)
@@ -33,7 +33,7 @@ namespace HEOSNet
             return heosDevices;
         }
 
-        private static async Task<HeosDevice> GetDeviceDetails(IPAddress ipAddress)
+        private static async Task<HeosDevice> GetDeviceDetailsAsync(IPAddress ipAddress)
         {
             using HeosClient client = new(ipAddress.ToString());
             await client.ConnectAsync(TimeSpan.FromSeconds(5));
@@ -54,7 +54,7 @@ namespace HEOSNet
             throw new Exception("Failed to get device details.");
         }
 
-        public static async Task<IEnumerable<IPAddress>> DiscoverDeviceIps(TimeSpan timeout)
+        public static async Task<IEnumerable<IPAddress>> DiscoverDeviceIpsAsync(TimeSpan timeout)
         {
             List<IPAddress> discoveredDevices = [];
 

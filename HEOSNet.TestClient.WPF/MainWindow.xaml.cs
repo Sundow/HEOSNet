@@ -23,7 +23,7 @@ public partial class MainWindow : Window
 
         try
         {
-            IEnumerable<HeosDevice> devices = await HeosDiscovery.DiscoverDevices(TimeSpan.FromSeconds(20));
+            IEnumerable<HeosDevice> devices = await HeosDiscovery.DiscoverDevicesAsync(TimeSpan.FromSeconds(20));
 
             _discoveredDevices.Clear();
             if (devices != null && devices.Any())
