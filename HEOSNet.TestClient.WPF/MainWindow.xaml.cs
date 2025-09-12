@@ -58,7 +58,7 @@ public partial class MainWindow : Window
     {
         if (DiscoveredDevicesListBox.SelectedItem is HeosDevice selectedDevice)
         {
-            var deviceControlWindow = new DeviceControlWindow(selectedDevice.IpAddress.ToString());
+            var deviceControlWindow = new DeviceControlWindow(selectedDevice);
             deviceControlWindow.Show();
         }
     }

@@ -47,7 +47,8 @@ namespace HEOSNet
                     string name = player["name"]?.ToString() ?? "Unknown";
                     string model = player["model"]?.ToString() ?? "Unknown";
 
-                    return new HeosDevice(ipAddress, name, model);
+                    bool supportsTelnet = await HeosTelnetDetector.IsTelnetSupportedAsync(ipAddress, model);
+                    return new HeosDevice(ipAddress, name, model, supportsTelnet);
                 }
             }
 
