@@ -21,9 +21,13 @@ public partial class MainWindow : Window
     {
         _discoveredDevices.Clear();
 
+        Cursor previousCursor = Mouse.OverrideCursor;
+        DiscoverButton.IsEnabled = false;
+        Mouse.OverrideCursor = Cursors.Wait;
+
         try
         {
-            IEnumerable<HeosDevice> devices = await HeosDiscovery.DiscoverDevicesAsync(TimeSpan.FromSeconds(20));
+            IEnumerable<HeosDevice> devices = await HeosDiscovery.DiscoverDevicesAsync(TimeSpan.FromSeconds(5));
 
             _discoveredDevices.Clear();
             if (devices != null && devices.Any())
@@ -42,6 +46,11 @@ public partial class MainWindow : Window
         {
             _discoveredDevices.Clear();
             MessageBox.Show($"Error during discovery: {ex.Message}");
+        }
+        finally
+        {
+            Mouse.OverrideCursor = previousCursor;
+            DiscoverButton.IsEnabled = true;
         }
     }
 

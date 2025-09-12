@@ -61,7 +61,7 @@ namespace HEOSNet
             NetworkInterface? networkInterface = GetActiveNetworkInterface() ?? throw new Exception("No active network interface found.");
             IPAddress? ipAddress = (networkInterface.GetIPProperties().UnicastAddresses
                 .FirstOrDefault(ua => ua.Address.AddressFamily == AddressFamily.InterNetwork)?.Address) ?? throw new Exception("No suitable IPv4 address found on the active network interface.");
-                        using UdpClient udpClient = new();
+            using UdpClient udpClient = new();
             udpClient.Client.Bind(new IPEndPoint(ipAddress, 0)); // Bind to specific interface's IP address
 
             IPAddress multicastAddress = IPAddress.Parse(SsdpMulticastAddress);
@@ -70,41 +70,59 @@ namespace HEOSNet
             byte[] requestBytes = Encoding.UTF8.GetBytes(SsdpSearchRequest);
             IPEndPoint remoteEndPoint = new(multicastAddress, SsdpPort);
 
+            // Send search request (can be sent multiple times for reliability if desired)
             await udpClient.SendAsync(requestBytes, requestBytes.Length, remoteEndPoint);
+
+            DateTime endTime = DateTime.UtcNow + timeout;
 
             try
             {
-                using CancellationTokenSource cts = new(timeout);
-                UdpReceiveResult result = await udpClient.ReceiveAsync(cts.Token);
-                string response = Encoding.UTF8.GetString(result.Buffer);
-
-                if (response.Contains("HEOS") && response.Contains("LOCATION:"))
+                while (DateTime.UtcNow < endTime)
                 {
-                    string? locationLine = response.Split(['\n'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(line => line.StartsWith("LOCATION:", StringComparison.OrdinalIgnoreCase));
-                    if (locationLine != null)
+                    TimeSpan remaining = endTime - DateTime.UtcNow;
+                    if (remaining <= TimeSpan.Zero)
+                        break; // precaution
+
+                    try
                     {
-                        string locationUrl = locationLine["LOCATION:".Length..].Trim();
-                        if (Uri.TryCreate(locationUrl, UriKind.Absolute, out Uri? uri))
+                        using CancellationTokenSource cts = new(remaining);
+                        UdpReceiveResult result = await udpClient.ReceiveAsync(cts.Token);
+                        string response = Encoding.UTF8.GetString(result.Buffer);
+
+                        // Parse SSDP headers robustly (case-insensitive)
+                        if (!string.IsNullOrEmpty(response))
                         {
-                            if (IPAddress.TryParse(uri.Host, out IPAddress? discoveredIpAddress))
+                            // Split on CRLF; remove empty; trim each line
+                            var lines = response.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries)
+                                                .Select(l => l.Trim());
+                            string? locationLine = lines.FirstOrDefault(l => l.StartsWith("LOCATION:", StringComparison.OrdinalIgnoreCase));
+                            if (locationLine != null)
                             {
-                                discoveredDevices.Add(discoveredIpAddress);
+                                string locationUrl = locationLine["LOCATION:".Length..].Trim();
+                                if (Uri.TryCreate(locationUrl, UriKind.Absolute, out Uri? uri) && IPAddress.TryParse(uri.Host, out IPAddress? discoveredIpAddress))
+                                {
+                                    // Basic HEOS heuristic: allow all that respond to this ST, optionally filter by presence of 'heos'
+                                    if (!discoveredDevices.Contains(discoveredIpAddress))
+                                    {
+                                        discoveredDevices.Add(discoveredIpAddress);
+                                    }
+                                }
                             }
                         }
                     }
+                    catch (OperationCanceledException)
+                    {
+                        // No packet arrived in remaining window; exit overall loop
+                        break;
+                    }
                 }
-            }
-            catch (OperationCanceledException)
-            {
-                // Timeout occurred, stop listening
             }
             catch (SocketException)
             {
-                // Socket error, likely due to timeout or network issue
+                // Ignore socket errors during discovery window
             }
 
             udpClient.DropMulticastGroup(multicastAddress);
-
 
             return discoveredDevices.Distinct();
         }
