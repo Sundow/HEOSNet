@@ -1,5 +1,6 @@
+using System.Net.Sockets;
+using System.Text;
 using System.Windows;
-using HEOSNet;
 
 namespace HEOSNet.TestClient.WPF
 {
@@ -7,10 +8,12 @@ namespace HEOSNet.TestClient.WPF
     {
         private readonly HeosDevice _device;
         private readonly string _host;
-        private HeosClient _client;
-        private HeosPlayer _player;
+        private readonly HeosClient _client;
+        private readonly HeosPlayer _player;
         
         private int? _pid;
+        private bool _suppressSliderEvent;
+        private bool _volumeInitialized;
 
         public DeviceControlWindow(HeosDevice device)
         {
@@ -19,6 +22,9 @@ namespace HEOSNet.TestClient.WPF
             _host = device.IpAddress.ToString();
             _client = new HeosClient(_host);
             _player = new HeosPlayer(_client);
+
+            VolumeSlider.IsEnabled = false; // disable until we know actual value
+            VolumeValueText.Text = "...";
 
             if (!_device.SupportsTelnet)
             {
@@ -43,6 +49,99 @@ namespace HEOSNet.TestClient.WPF
                     _pid = players.First().GetProperty("pid").GetInt32();
                 }
             }
+
+            await InitializeVolumeAsync();
+        }
+
+        private async Task InitializeVolumeAsync()
+        {
+            int? currentVolume = await TryGetVolumeAsync();
+            if (currentVolume.HasValue)
+            {
+                _suppressSliderEvent = true;
+                VolumeSlider.Value = currentVolume.Value;
+                VolumeValueText.Text = currentVolume.Value.ToString();
+                VolumeSlider.IsEnabled = true;
+                _suppressSliderEvent = false;
+                _volumeInitialized = true;
+            }
+            else
+            {
+                VolumeValueText.Text = "n/a";
+            }
+        }
+
+        private async Task<int?> TryGetVolumeAsync()
+        {
+            // Prefer HEOS API if we have pid
+            if (_pid.HasValue)
+            {
+                try
+                {
+                    var volumeResponse = await _player.GetVolumeAsync(_pid.Value);
+
+                    if (!string.IsNullOrWhiteSpace(volumeResponse.Message))
+                    {
+                        string? levelFromMessage = GetQueryValue(volumeResponse.Message!, "level");
+                        if (levelFromMessage != null && int.TryParse(levelFromMessage, out int parsedLevelFromMessage))
+                        {
+                            return parsedLevelFromMessage;
+                        }
+                    }
+                }
+                catch
+                {
+                    // ignore and fall back
+                }
+            }
+
+            // Fallback to telnet query if supported
+            if (_device.SupportsTelnet)
+            {
+                try
+                {
+                    using TcpClient tcp = new();
+                    await tcp.ConnectAsync(_host, 23);
+                    using NetworkStream stream = tcp.GetStream();
+                    byte[] query = Encoding.ASCII.GetBytes("MV?\r\n");
+                    await stream.WriteAsync(query);
+                    byte[] buffer = new byte[64];
+                    int read = await stream.ReadAsync(buffer);
+                    if (read > 0)
+                    {
+                        string resp = Encoding.ASCII.GetString(buffer, 0, read).Trim(); // e.g. MV35 or MV350 (for .5 steps) -> treat first 2-3 digits
+                        if (resp.StartsWith("MV", StringComparison.OrdinalIgnoreCase))
+                        {
+                            string numeric = new(resp.Skip(2).TakeWhile(char.IsDigit).ToArray());
+                            if (int.TryParse(numeric, out int telnetVol))
+                            {
+                                return telnetVol;
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // ignore
+                }
+            }
+
+            return null;
+        }
+
+        private static string? GetQueryValue(string queryLike, string key)
+        {
+            // Expect pairs separated by '&'
+            var parts = queryLike.Split('&', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var part in parts)
+            {
+                var kv = part.Split('=', 2);
+                if (kv.Length == 2 && kv[0].Equals(key, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Uri.UnescapeDataString(kv[1]);
+                }
+            }
+            return null;
         }
 
         private async void PowerOnButton_Click(object sender, RoutedEventArgs e)
@@ -61,7 +160,23 @@ namespace HEOSNet.TestClient.WPF
         {
             if (_pid.HasValue)
             {
-                await _player.SetPlayStateAsync(_pid.Value, "play");
+                await _player.PlayAsync(_pid.Value);
+            }
+        }
+
+        private async void PauseButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_pid.HasValue)
+            {
+                await _player.PauseAsync(_pid.Value);
+            }
+        }
+
+        private async void StopButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_pid.HasValue)
+            {
+                await _player.StopAsync(_pid.Value);
             }
         }
 
@@ -87,6 +202,17 @@ namespace HEOSNet.TestClient.WPF
         {
             if (_device.SupportsTelnet)
                 await _player.MuteOffAsync();
+        }
+
+        private async void VolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_suppressSliderEvent) return;
+            if (!_pid.HasValue) return;
+            if (!_volumeInitialized) return; // ignore initial 0->set changes before we fetch real value
+
+            int newVolume = (int)e.NewValue;
+            VolumeValueText.Text = newVolume.ToString();
+            await _player.SetVolumeAsync(_pid.Value, newVolume);
         }
 
         private void Window_Closed(object sender, System.EventArgs e)

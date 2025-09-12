@@ -5,17 +5,26 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:HEOSNet.TestClient.WPF"
         mc:Ignorable="d"
-        Title="Device Control" Height="300" Width="300"
+        Title="Device Control" Height="380" Width="340"
         Loaded="Window_Loaded" Closed="Window_Closed">
     <Grid>
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-            <Button x:Name="PowerOnButton" Content="Power On" Width="100" Margin="5" Click="PowerOnButton_Click"/>
-            <Button x:Name="StandbyButton" Content="Standby" Width="100" Margin="5" Click="StandbyButton_Click"/>
-            <Button x:Name="PlayButton" Content="Play" Width="100" Margin="5" Click="PlayButton_Click"/>
-            <Button x:Name="VolumeUpButton" Content="Volume Up" Width="100" Margin="5" Click="VolumeUpButton_Click"/>
-            <Button x:Name="VolumeDownButton" Content="Volume Down" Width="100" Margin="5" Click="VolumeDownButton_Click"/>
-            <Button x:Name="MuteOnButton" Content="Mute" Width="100" Margin="5" Click="MuteOnButton_Click"/>
-            <Button x:Name="MuteOffButton" Content="Unmute" Width="100" Margin="5" Click="MuteOffButton_Click"/>
+            <Button x:Name="PowerOnButton" Content="Power On" Width="160" Margin="5" Click="PowerOnButton_Click"/>
+            <Button x:Name="StandbyButton" Content="Standby" Width="160" Margin="5" Click="StandbyButton_Click"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="5">
+                <Button x:Name="PlayButton" Content="Play" Width="70" Margin="2" Click="PlayButton_Click"/>
+                <Button x:Name="PauseButton" Content="Pause" Width="70" Margin="2" Click="PauseButton_Click"/>
+                <Button x:Name="StopButton" Content="Stop" Width="70" Margin="2" Click="StopButton_Click"/>
+            </StackPanel>
+            <Button x:Name="VolumeUpButton" Content="Volume Up" Width="160" Margin="5" Click="VolumeUpButton_Click"/>
+            <Button x:Name="VolumeDownButton" Content="Volume Down" Width="160" Margin="5" Click="VolumeDownButton_Click"/>
+            <Button x:Name="MuteOnButton" Content="Mute" Width="160" Margin="5" Click="MuteOnButton_Click"/>
+            <Button x:Name="MuteOffButton" Content="Unmute" Width="160" Margin="5" Click="MuteOffButton_Click"/>
+            <StackPanel Orientation="Horizontal" Margin="10,15,10,0" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <TextBlock Text="Volume:" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                <Slider x:Name="VolumeSlider" Width="180" Minimum="0" Maximum="100" ValueChanged="VolumeSlider_ValueChanged" IsSnapToTickEnabled="True" TickFrequency="1"/>
+                <TextBlock x:Name="VolumeValueText" Margin="8,0,0,0" VerticalAlignment="Center"/>
+            </StackPanel>
         </StackPanel>
     </Grid>
 </Window>

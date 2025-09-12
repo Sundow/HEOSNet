@@ -1,6 +1,3 @@
-using System.Net.Sockets;
-using System.Text;
-
 namespace HEOSNet
 {
     public class HeosPlayer(HeosClient client)
@@ -28,6 +25,10 @@ namespace HEOSNet
             return new HeosResponse(responseString);
         }
 
+        public Task<HeosResponse> PlayAsync(int pid) => SetPlayStateAsync(pid, "play");
+        public Task<HeosResponse> PauseAsync(int pid) => SetPlayStateAsync(pid, "pause");
+        public Task<HeosResponse> StopAsync(int pid) => SetPlayStateAsync(pid, "stop");
+
         public async Task<HeosResponse> GetVolumeAsync(int pid)
         {
             HeosCommand command = new("player", "get_volume", new Dictionary<string, string> { { "pid", pid.ToString() } });
@@ -39,7 +40,14 @@ namespace HEOSNet
         {
             HeosCommand command = new("player", "set_volume", new Dictionary<string, string> { { "pid", pid.ToString() }, { "level", volume.ToString() } });
             var responseString = await _client.SendCommandAsync(command.ToString());
-            return new HeosResponse(responseString);
+            try
+            {
+                return new HeosResponse(responseString);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Failed to set volume to {volume} for player {pid}. Response: {responseString}", ex);
+            }
         }
 
         public async Task<HeosResponse> SetMuteAsync(int pid, bool mute)
