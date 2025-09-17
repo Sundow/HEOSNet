@@ -37,18 +37,34 @@ namespace HEOSNet
         {
             using HeosClient client = new(ipAddress.ToString());
             await client.ConnectAsync(TimeSpan.FromSeconds(5));
+
             string response = await client.SendCommandAsync(new HeosCommand("player", "get_players").ToString(), TimeSpan.FromSeconds(5));
 
             JObject jsonResponse = JObject.Parse(response);
             if (jsonResponse["payload"] is JArray players)
             {
-                if (players.FirstOrDefault(p => p["ip"]?.ToString() == ipAddress.ToString()) is JObject player)
+                // Prefer exact IP match; fallback to first player if none matches
+                JObject? player = players.FirstOrDefault(p => p["ip"]?.ToString() == ipAddress.ToString()) as JObject
+                                  ?? players.FirstOrDefault() as JObject;
+
+                if (player is not null)
                 {
                     string name = player["name"]?.ToString() ?? "Unknown";
                     string model = player["model"]?.ToString() ?? "Unknown";
 
+                    int? pid = null;
+                    var pidToken = player["pid"];
+                    if (pidToken != null)
+                    {
+                        if (pidToken.Type == JTokenType.Integer)
+                            pid = pidToken.Value<int>();
+                        else if (int.TryParse(pidToken.ToString(), out int parsed))
+                            pid = parsed;
+                    }
+
                     bool supportsTelnet = await HeosTelnetDetector.IsTelnetSupportedAsync(ipAddress, model);
-                    return new HeosDevice(ipAddress, name, model, supportsTelnet);
+
+                    return new HeosDevice(ipAddress, name, model, supportsTelnet, pid);
                 }
             }
 
