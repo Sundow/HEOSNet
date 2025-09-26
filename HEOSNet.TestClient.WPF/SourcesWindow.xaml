@@ -1,0 +1,22 @@
+<Window x:Class="HEOSNet.TestClient.WPF.SourcesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Music Sources" Height="380" Width="420"
+        Loaded="Window_Loaded">
+    <DockPanel Margin="10">
+        <StackPanel Orientation="Horizontal" DockPanel.Dock="Top">
+            <Button x:Name="RefreshButton" Content="Refresh" Width="70" Click="RefreshButton_Click" Margin="0,0,6,0"/>
+            <TextBlock x:Name="StatusText" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="Gray"/>
+        </StackPanel>
+        <DataGrid x:Name="SourcesGrid"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  SelectionMode="Single">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="180"/>
+                <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="90"/>
+                <DataGridCheckBoxColumn Header="Playable" Binding="{Binding Playable, Mode=OneWay}" IsReadOnly="True" Width="70"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</Window>

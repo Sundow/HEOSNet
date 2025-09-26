@@ -10,7 +10,7 @@ namespace HEOSNet.TestClient.WPF
         private readonly string _host;
         private readonly HeosClient _client;
         private readonly HeosPlayer _player;
-        
+
         private int? _pid;
         private bool _suppressSliderEvent;
         private bool _volumeInitialized;
@@ -23,7 +23,7 @@ namespace HEOSNet.TestClient.WPF
             _client = new HeosClient(_host);
             _player = new HeosPlayer(_client);
 
-            VolumeSlider.IsEnabled = false; // disable until we know actual value
+            VolumeSlider.IsEnabled = false;
             VolumeValueText.Text = "...";
 
             if (!_device.SupportsTelnet)
@@ -73,13 +73,11 @@ namespace HEOSNet.TestClient.WPF
 
         private async Task<int?> TryGetVolumeAsync()
         {
-            // Prefer HEOS API if we have pid
             if (_pid.HasValue)
             {
                 try
                 {
                     var volumeResponse = await _player.GetVolumeAsync(_pid.Value);
-
                     if (!string.IsNullOrWhiteSpace(volumeResponse.Message))
                     {
                         string? levelFromMessage = GetQueryValue(volumeResponse.Message!, "level");
@@ -89,13 +87,9 @@ namespace HEOSNet.TestClient.WPF
                         }
                     }
                 }
-                catch
-                {
-                    // ignore and fall back
-                }
+                catch { }
             }
 
-            // Fallback to telnet query if supported
             if (_device.SupportsTelnet)
             {
                 try
@@ -109,7 +103,7 @@ namespace HEOSNet.TestClient.WPF
                     int read = await stream.ReadAsync(buffer);
                     if (read > 0)
                     {
-                        string resp = Encoding.ASCII.GetString(buffer, 0, read).Trim(); // e.g. MV35 or MV350 (for .5 steps) -> treat first 2-3 digits
+                        string resp = Encoding.ASCII.GetString(buffer, 0, read).Trim();
                         if (resp.StartsWith("MV", StringComparison.OrdinalIgnoreCase))
                         {
                             string numeric = new(resp.Skip(2).TakeWhile(char.IsDigit).ToArray());
@@ -120,10 +114,7 @@ namespace HEOSNet.TestClient.WPF
                         }
                     }
                 }
-                catch
-                {
-                    // ignore
-                }
+                catch { }
             }
 
             return null;
@@ -131,7 +122,6 @@ namespace HEOSNet.TestClient.WPF
 
         private static string? GetQueryValue(string queryLike, string key)
         {
-            // Expect pairs separated by '&'
             var parts = queryLike.Split('&', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             foreach (var part in parts)
             {
@@ -159,25 +149,19 @@ namespace HEOSNet.TestClient.WPF
         private async void PlayButton_Click(object sender, RoutedEventArgs e)
         {
             if (_pid.HasValue)
-            {
                 await _player.PlayAsync(_pid.Value);
-            }
         }
 
         private async void PauseButton_Click(object sender, RoutedEventArgs e)
         {
             if (_pid.HasValue)
-            {
                 await _player.PauseAsync(_pid.Value);
-            }
         }
 
         private async void StopButton_Click(object sender, RoutedEventArgs e)
         {
             if (_pid.HasValue)
-            {
                 await _player.StopAsync(_pid.Value);
-            }
         }
 
         private async void VolumeUpButton_Click(object sender, RoutedEventArgs e)
@@ -208,14 +192,33 @@ namespace HEOSNet.TestClient.WPF
         {
             if (_suppressSliderEvent) return;
             if (!_pid.HasValue) return;
-            if (!_volumeInitialized) return; // ignore initial 0->set changes before we fetch real value
+            if (!_volumeInitialized) return;
 
             int newVolume = (int)e.NewValue;
             VolumeValueText.Text = newVolume.ToString();
             await _player.SetVolumeAsync(_pid.Value, newVolume);
         }
 
-        private void Window_Closed(object sender, System.EventArgs e)
+        private void ShowQueueButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_pid.HasValue)
+            {
+                QueueWindow dlg = new(_client, _pid.Value) { Owner = this };
+                dlg.ShowDialog();
+            }
+            else
+            {
+                MessageBox.Show(this, "No player PID resolved yet.", "Queue", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
+        private void ListSourcesButton_Click(object sender, RoutedEventArgs e)
+        {
+            SourcesWindow dlg = new(_client) { Owner = this };
+            dlg.ShowDialog();
+        }
+
+        private void Window_Closed(object sender, EventArgs e)
         {
             _client.Disconnect();
         }
