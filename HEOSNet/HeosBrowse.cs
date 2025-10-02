@@ -2,11 +2,33 @@ using System.Text.Json;
 
 namespace HEOSNet
 {
-    public class HeosBrowse(HeosClient client)
+    public enum HeosBrowseItemKind
     {
-        private readonly HeosClient _client = client;
+        Source,
+        Container,
+        Media
+    }
 
-        // Gets top-level music sources (streaming services, inputs, etc.)
+    public record HeosBrowseItem(
+        int SourceSid,      // Effective sid to use for further browse calls at this node
+        string Id,          // cid or mid. Empty string => sid-only container (DLNA server root)
+        HeosBrowseItemKind Kind,
+        string Name,
+        bool Playable,
+        string RawType,
+        string ImageUrl
+    )
+    {
+        public bool IsContainer => Kind == HeosBrowseItemKind.Container;
+        public bool IsMedia => Kind == HeosBrowseItemKind.Media;
+        public bool IsSidOnlyContainer => IsContainer && string.IsNullOrEmpty(Id);
+    }
+
+    public partial class HeosBrowse
+    {
+        private readonly HeosClient _client;
+        public HeosBrowse(HeosClient client) => _client = client;
+
         public async Task<HeosResponse> GetMusicSourcesAsync()
         {
             HeosCommand cmd = new("browse", "get_music_sources");
@@ -14,20 +36,18 @@ namespace HEOSNet
             return new HeosResponse(raw);
         }
 
-        // Generic browse call. cid is optional (null => root of the source).
-        // range format: "start,count" (e.g. "0,49")
         public async Task<HeosResponse> BrowseAsync(int sid, string? cid = null, string? range = null)
         {
             Dictionary<string, string> parameters = new() { { "sid", sid.ToString() } };
             if (!string.IsNullOrWhiteSpace(cid)) parameters["cid"] = cid;
             if (!string.IsNullOrWhiteSpace(range)) parameters["range"] = range;
-
             HeosCommand cmd = new("browse", "browse", parameters);
-            string raw = await _client.SendCommandAsync(cmd.ToString());
+
+            string raw = await _client.SendBrowseWithCompletionAsync(cmd);
+   
             return new HeosResponse(raw);
         }
 
-        // Retrieve detailed metadata for a single container/item
         public async Task<HeosResponse> RetrieveMetadataAsync(int sid, string cid)
         {
             Dictionary<string, string> parameters = new() { { "sid", sid.ToString() }, { "cid", cid } };
@@ -36,7 +56,6 @@ namespace HEOSNet
             return new HeosResponse(raw);
         }
 
-        // Get available search criteria for a source
         public async Task<HeosResponse> GetSearchCriteriaAsync(int sid)
         {
             Dictionary<string, string> parameters = new() { { "sid", sid.ToString() } };
@@ -45,7 +64,6 @@ namespace HEOSNet
             return new HeosResponse(raw);
         }
 
-        // Perform a search within a source for a given criteria and search string.
         public async Task<HeosResponse> SearchAsync(int sid, string search, string? scid = null, string? range = null)
         {
             Dictionary<string, string> parameters = scid switch
@@ -55,45 +73,72 @@ namespace HEOSNet
                 _ when range is null => new() { { "sid", sid.ToString() }, { "search", search }, { "scid", scid! } },
                 _ => new() { { "sid", sid.ToString() }, { "search", search }, { "scid", scid! }, { "range", range! } }
             };
-
             HeosCommand cmd = new("browse", "search", parameters);
             string raw = await _client.SendCommandAsync(cmd.ToString());
             return new HeosResponse(raw);
         }
 
-        // Only numeric 'sid' entries are collected.
-        public static IReadOnlyList<HeosBrowseItem> ParseBrowseItems(HeosResponse response)
+        public static IReadOnlyList<HeosBrowseItem> ParseSources(HeosResponse response)
         {
-            if (!response.Payload.HasValue)
-                return [];
-
+            if (!response.Payload.HasValue) return [];
             List<HeosBrowseItem> items = [];
-            try
+            foreach (var el in response.Payload.Value.EnumerateArray())
             {
-                foreach (JsonElement el in response.Payload.Value.EnumerateArray())
-                {
-                    string? name = el.TryGetProperty("name", out var n) ? n.GetString() : null;
-                    string? type = el.TryGetProperty("type", out var t) ? t.GetString() : null;
-                    int? sid = el.TryGetProperty("sid", out var sidProp) && sidProp.TryGetInt32(out int sidVal) ? sidVal : null;
-                    string? image = el.TryGetProperty("image_url", out var i) ? i.GetString() : null;
-                    bool playable = el.TryGetProperty("playable", out var p) && p.ValueKind == JsonValueKind.String && string.Equals(p.GetString(), "yes", StringComparison.OrdinalIgnoreCase);
-
-                    if (name != null && sid.HasValue)
-                        items.Add(new HeosBrowseItem(name, sid.Value, type ?? string.Empty, playable, image ?? string.Empty));
-                }
+                if (!el.TryGetProperty("sid", out var sidProp) || !sidProp.TryGetInt32(out int sid)) continue;
+                string name = el.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                string rawType = el.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "";
+                string image = el.TryGetProperty("image_url", out var i) ? i.GetString() ?? "" : "";
+                bool playable = el.TryGetProperty("playable", out var p) &&
+                                p.ValueKind == JsonValueKind.String &&
+                                (p.GetString() ?? "").Equals("yes", StringComparison.OrdinalIgnoreCase);
+                items.Add(new HeosBrowseItem(sid, sid.ToString(), HeosBrowseItemKind.Source, name, playable, rawType, image));
             }
-            catch
+            return items;
+        }
+
+        // Handles:
+        //  - Containers: cid present
+        //  - Media: mid present
+        //  - DLNA server roots under Local Music: only nested sid (different from sourceSid) and no cid/mid
+        public static IReadOnlyList<HeosBrowseItem> ParseBrowseChildren(int sourceSid, HeosResponse response)
+        {
+            if (!response.Payload.HasValue) return [];
+            List<HeosBrowseItem> items = [];
+            foreach (var el in response.Payload.Value.EnumerateArray())
             {
-                // ignore parse errors
+                string name = el.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                string rawType = el.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "";
+                string image = el.TryGetProperty("image_url", out var i) ? i.GetString() ?? "" : "";
+                bool playable = el.TryGetProperty("playable", out var p) &&
+                                p.ValueKind == JsonValueKind.String &&
+                                (p.GetString() ?? "").Equals("yes", StringComparison.OrdinalIgnoreCase);
+
+                if (el.TryGetProperty("cid", out var cidProp))
+                {
+                    string cid = cidProp.GetString() ?? "";
+                    if (cid.Length == 0) continue;
+                    items.Add(new HeosBrowseItem(sourceSid, cid, HeosBrowseItemKind.Container, name, playable, rawType, image));
+                    continue;
+                }
+
+                if (el.TryGetProperty("mid", out var midProp))
+                {
+                    string mid = midProp.GetString() ?? "";
+                    if (mid.Length == 0) continue;
+                    items.Add(new HeosBrowseItem(sourceSid, mid, HeosBrowseItemKind.Media, name, playable, rawType, image));
+                    continue;
+                }
+
+                // Nested DLNA server root: only 'sid' present and different from current source sid.
+                if (el.TryGetProperty("sid", out var nestedSidProp) &&
+                    nestedSidProp.TryGetInt32(out int nestedSid) &&
+                    nestedSid != sourceSid)
+                {
+                    // Represent as container with empty Id; next browse uses new SourceSid (nestedSid) and null cid.
+                    items.Add(new HeosBrowseItem(nestedSid, string.Empty, HeosBrowseItemKind.Container, name, playable, rawType, image));
+                }
             }
             return items;
         }
     }
-
-    public record HeosBrowseItem(
-        string Name,
-        int Sid,
-        string Type,
-        bool Playable,
-        string ImageUrl);
 }

@@ -30,7 +30,6 @@
             <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,4,0,0">
                 <Button x:Name="ShowQueueButton" Content="Show Queue" Width="110" Margin="0,0,10,0" Click="ShowQueueButton_Click"/>
                 <Button x:Name="ListSourcesButton" Content="List Music Sources" Width="150" Margin="0,0,10,0" Click="ListSourcesButton_Click"/>
-                <TextBlock Text="Ready" Foreground="Gray" VerticalAlignment="Center"/>
             </StackPanel>
         </StackPanel>
     </Grid>

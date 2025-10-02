@@ -1,5 +1,7 @@
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
+using System.Diagnostics.CodeAnalysis;
 
 namespace HEOSNet
 {
@@ -15,10 +17,7 @@ namespace HEOSNet
         private readonly StringBuilder _receiveBuffer = new();
         private readonly byte[] _readBuffer = new byte[8192];
 
-        public Task ConnectAsync()
-        {
-            return ConnectAsync(null);
-        }
+        public Task ConnectAsync() => ConnectAsync(null);
 
         public async Task ConnectAsync(TimeSpan? timeout)
         {
@@ -33,43 +32,28 @@ namespace HEOSNet
 
         public virtual async Task<string> SendCommandAsync(string command, TimeSpan? timeout)
         {
-            if (_stream == null)
-            {
-                throw new InvalidOperationException("Client is not connected.");
-            }
+            if (_stream == null) throw new InvalidOperationException("Client is not connected.");
             timeout ??= TimeSpan.FromSeconds(30);
             await _sendLock.WaitAsync();
             try
             {
                 using CancellationTokenSource cts = new(timeout.Value);
 
-                // Write command
                 string outbound = command.EndsWith("\r\n", StringComparison.Ordinal) ? command : command + "\r\n";
                 byte[] commandBytes = Encoding.ASCII.GetBytes(outbound);
                 await _stream.WriteAsync(commandBytes, cts.Token);
                 await _stream.FlushAsync(cts.Token);
 
-                // Read until we have a full JSON object (HEOS responses are single JSON per command)
                 while (true)
                 {
-                    // Try to extract without additional read first (in case previous call left extra data)
-                    if (TryExtractNextJson(_receiveBuffer, out string? json))
-                    {
-                        return json!;
-                    }
+                    if (TryExtractNextJson(_receiveBuffer, out string? json)) return json!;
 
                     int bytesRead = await _stream.ReadAsync(_readBuffer, cts.Token);
-                    if (bytesRead == 0)
-                    {
-                        throw new IOException("Connection closed by remote host.");
-                    }
+                    if (bytesRead == 0) throw new IOException("Connection closed by remote host.");
                     string chunk = Encoding.UTF8.GetString(_readBuffer, 0, bytesRead);
                     _receiveBuffer.Append(chunk);
 
-                    if (TryExtractNextJson(_receiveBuffer, out json))
-                    {
-                        return json!;
-                    }
+                    if (TryExtractNextJson(_receiveBuffer, out json)) return json!;
                 }
             }
             finally
@@ -78,17 +62,58 @@ namespace HEOSNet
             }
         }
 
-        private static bool TryExtractNextJson(StringBuilder buffer, out string? json)
+        public async Task<string> SendBrowseWithCompletionAsync(HeosCommand command, TimeSpan? overallTimeout = null)
+        {
+            if (_stream == null) throw new InvalidOperationException("Client is not connected.");
+            overallTimeout ??= TimeSpan.FromSeconds(10);
+
+            await _sendLock.WaitAsync();
+            try
+            {
+                using CancellationTokenSource cts = new(overallTimeout.Value);
+
+                string outbound = command.ToString();
+                outbound = outbound.EndsWith("\r\n", StringComparison.Ordinal) ? outbound : outbound + "\r\n";
+                byte[] commandBytes = Encoding.ASCII.GetBytes(outbound);
+                await _stream!.WriteAsync(commandBytes, cts.Token);
+                await _stream.FlushAsync(cts.Token);
+
+                string targetCommand = command.CommandGroup + "/" + command.Command;
+
+                while (true)
+                {
+                    if (TryExtractNextJson(_receiveBuffer, out string? json1))
+                    {
+                        if (IsBrowseFinal(json1, targetCommand, out bool processingComplete))
+                        {
+                            if (processingComplete)
+                                return json1!; // final response
+                            // else still processing, continue loop
+                        }
+                        // unrelated events are ignored
+                    }
+
+                    int bytesRead = await _stream.ReadAsync(_readBuffer, cts.Token);
+                    if (bytesRead == 0) throw new IOException("Connection closed by remote host.");
+                    string chunk = Encoding.UTF8.GetString(_readBuffer, 0, bytesRead);
+                    _receiveBuffer.Append(chunk);
+                }
+            }
+            finally
+            {
+                _sendLock.Release();
+            }
+        }
+
+        private static bool TryExtractNextJson(StringBuilder buffer, [NotNullWhen(true)] out string? json)
         {
             json = null;
             if (buffer.Length == 0)
                 return false;
 
-            // Find the first '{'
             int start = buffer.ToString().IndexOf('{');
             if (start < 0)
             {
-                // No JSON start yet, discard any leading noise
                 buffer.Clear();
                 return false;
             }
@@ -101,37 +126,21 @@ namespace HEOSNet
                 char c = buffer[i];
                 if (inString)
                 {
-                    if (escape)
-                    {
-                        escape = false;
-                    }
-                    else if (c == '\\')
-                    {
-                        escape = true;
-                    }
-                    else if (c == '"')
-                    {
-                        inString = false;
-                    }
+                    if (escape) escape = false;
+                    else if (c == '\\') escape = true;
+                    else if (c == '"') inString = false;
                 }
                 else
                 {
-                    if (c == '"')
-                    {
-                        inString = true;
-                    }
-                    else if (c == '{')
-                    {
-                        depth++;
-                    }
+                    if (c == '"') inString = true;
+                    else if (c == '{') depth++;
                     else if (c == '}')
                     {
                         depth--;
                         if (depth == 0)
                         {
-                            int end = i + 1; // exclusive
+                            int end = i + 1;
                             string candidate = buffer.ToString(start, end - start);
-                            // Remove consumed portion
                             buffer.Remove(0, end);
                             json = candidate;
                             return true;
@@ -139,7 +148,37 @@ namespace HEOSNet
                     }
                 }
             }
-            return false; // need more data
+            return false;
+        }
+
+        // Returns true if this JSON belongs to the browse command; processingComplete indicates final response
+        private static bool IsBrowseFinal(string json, string targetCommand, out bool processingComplete)
+        {
+            processingComplete = false;
+            try
+            {
+                using JsonDocument doc = JsonDocument.Parse(json);
+                if (!doc.RootElement.TryGetProperty("heos", out var heos)) return false;
+                if (!heos.TryGetProperty("command", out var cmdProp)) return false;
+                string? cmd = cmdProp.GetString();
+                if (!string.Equals(cmd, targetCommand, StringComparison.OrdinalIgnoreCase)) return false;
+
+                if (heos.TryGetProperty("message", out var msgProp))
+                {
+                    string? msg = msgProp.GetString();
+                    if (msg != null && msg.Contains("command under process", StringComparison.OrdinalIgnoreCase))
+                    {
+                        processingComplete = false; // intermediate
+                        return true;
+                    }
+                }
+                processingComplete = true; // final (payload may be empty)
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         public void Disconnect()
@@ -164,3 +203,4 @@ namespace HEOSNet
         }
     }
 }
+

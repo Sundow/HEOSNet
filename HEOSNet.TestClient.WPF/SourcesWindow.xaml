@@ -1,8 +1,12 @@
 <Window x:Class="HEOSNet.TestClient.WPF.SourcesWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Music Sources" Height="380" Width="420"
+        xmlns:local="clr-namespace:HEOSNet.TestClient.WPF"
+        Title="Music Sources" Height="380" Width="500"
         Loaded="Window_Loaded">
+    <Window.Resources>
+        <local:HeosServerVisibilityConverter x:Key="HeosServerVisibilityConverter" />
+    </Window.Resources>
     <DockPanel Margin="10">
         <StackPanel Orientation="Horizontal" DockPanel.Dock="Top">
             <Button x:Name="RefreshButton" Content="Refresh" Width="70" Click="RefreshButton_Click" Margin="0,0,6,0"/>
@@ -13,9 +17,19 @@
                   IsReadOnly="True"
                   SelectionMode="Single">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="180"/>
-                <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="90"/>
+                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="160"/>
+                <DataGridTextColumn Header="Type" Binding="{Binding RawType}" Width="110"/>
                 <DataGridCheckBoxColumn Header="Playable" Binding="{Binding Playable, Mode=OneWay}" IsReadOnly="True" Width="70"/>
+                <DataGridTextColumn Header="SID" Binding="{Binding SourceSid}" Width="60"/>
+                <DataGridTemplateColumn Header="Browse" Width="60">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Button Content="..." Padding="4,0" Margin="2" Click="BrowseButton_Click"
+                                    ToolTip="Browse source"
+                                    Visibility="{Binding RawType, Converter={StaticResource HeosServerVisibilityConverter}}"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
     </DockPanel>

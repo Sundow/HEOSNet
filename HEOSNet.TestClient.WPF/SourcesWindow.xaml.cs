@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows;
+using System.Windows.Data;
+using System.Globalization;
 
 namespace HEOSNet.TestClient.WPF
 {
@@ -26,10 +28,10 @@ namespace HEOSNet.TestClient.WPF
                 _rows.Clear();
                 HeosBrowse browse = new(_client);
                 var resp = await browse.GetMusicSourcesAsync();
-                var items = HeosBrowse.ParseBrowseItems(resp);
+                var items = HeosBrowse.ParseSources(resp); // updated parser
                 foreach (var item in items)
                 {
-                    _rows.Add(new SourceRow(item.Name, item.Type, item.Playable, item.Sid));
+                    _rows.Add(new SourceRow(item.Name, item.RawType, item.Playable, item.SourceSid));
                 }
                 StatusText.Text = $"Sources: {_rows.Count}";
             }
@@ -52,12 +54,31 @@ namespace HEOSNet.TestClient.WPF
 
         private async void RefreshButton_Click(object sender, RoutedEventArgs e) => await ReloadAsync();
 
-        public class SourceRow(string name, string type, bool playable, int sid)
+        private void BrowseButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (SourcesGrid.SelectedItem is SourceRow row)
+            {
+                BrowseSourceWindow dlg = new(_client, row.SourceSid, row.Name) { Owner = this };
+                dlg.ShowDialog();
+            }
+        }
+
+        public class SourceRow(string name, string rawType, bool playable, int sourceSid)
         {
             public string Name { get; } = name;
-            public string Type { get; } = type;
+            public string RawType { get; } = rawType;
             public bool Playable { get; } = playable;
-            public int Sid { get; } = sid;
+            public int SourceSid { get; } = sourceSid;
         }
+    }
+
+    public class HeosServerVisibilityConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            return value is string s && s.Equals("heos_server", StringComparison.OrdinalIgnoreCase)
+                ? Visibility.Visible : Visibility.Collapsed;
+        }
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
     }
 }
