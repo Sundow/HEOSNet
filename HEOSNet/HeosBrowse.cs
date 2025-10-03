@@ -10,8 +10,8 @@ namespace HEOSNet
     }
 
     public record HeosBrowseItem(
-        int SourceSid,      // Effective sid to use for further browse calls at this node
-        string Id,          // cid or mid. Empty string => sid-only container (DLNA server root)
+        int SourceSid,
+        string Id,
         HeosBrowseItemKind Kind,
         string Name,
         bool Playable,
@@ -36,15 +36,16 @@ namespace HEOSNet
             return new HeosResponse(raw);
         }
 
+        // UPDATED: always wait for final (skips intermediate “command under process” frames)
         public async Task<HeosResponse> BrowseAsync(int sid, string? cid = null, string? range = null)
         {
             Dictionary<string, string> parameters = new() { { "sid", sid.ToString() } };
             if (!string.IsNullOrWhiteSpace(cid)) parameters["cid"] = cid;
             if (!string.IsNullOrWhiteSpace(range)) parameters["range"] = range;
-            HeosCommand cmd = new("browse", "browse", parameters);
 
+            HeosCommand cmd = new("browse", "browse", parameters);
+            // Use the completion-aware method so we don't leak intermediate browse responses
             string raw = await _client.SendBrowseWithCompletionAsync(cmd);
-   
             return new HeosResponse(raw);
         }
 
@@ -96,10 +97,6 @@ namespace HEOSNet
             return items;
         }
 
-        // Handles:
-        //  - Containers: cid present
-        //  - Media: mid present
-        //  - DLNA server roots under Local Music: only nested sid (different from sourceSid) and no cid/mid
         public static IReadOnlyList<HeosBrowseItem> ParseBrowseChildren(int sourceSid, HeosResponse response)
         {
             if (!response.Payload.HasValue) return [];
@@ -129,12 +126,10 @@ namespace HEOSNet
                     continue;
                 }
 
-                // Nested DLNA server root: only 'sid' present and different from current source sid.
                 if (el.TryGetProperty("sid", out var nestedSidProp) &&
                     nestedSidProp.TryGetInt32(out int nestedSid) &&
                     nestedSid != sourceSid)
                 {
-                    // Represent as container with empty Id; next browse uses new SourceSid (nestedSid) and null cid.
                     items.Add(new HeosBrowseItem(nestedSid, string.Empty, HeosBrowseItemKind.Container, name, playable, rawType, image));
                 }
             }
