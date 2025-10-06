@@ -152,7 +152,7 @@ public partial class BrowseSourceWindow : Window
             StatusText.Text = "Select a folder to queue.";
             return;
         }
-        await QueueContainerAsync(_rootSid, node.Cid, HeosQueueAddAction.Add);
+        await QueueContainerAsync(node.EffectiveSid, node.Cid, HeosQueueAddAction.Add);
     }
 
     private async void ReplaceAndPlayButton_Click(object sender, RoutedEventArgs e)
@@ -163,7 +163,7 @@ public partial class BrowseSourceWindow : Window
             StatusText.Text = "Select a folder to replace & play.";
             return;
         }
-        await QueueContainerAsync(_rootSid, node.Cid, HeosQueueAddAction.ReplaceAndPlay);
+        await QueueContainerAsync(node.EffectiveSid, node.Cid, HeosQueueAddAction.ReplaceAndPlay);
     }
 
     private async void AddTrackButton_Click(object sender, RoutedEventArgs e)
@@ -174,10 +174,10 @@ public partial class BrowseSourceWindow : Window
             StatusText.Text = "Select a folder (not root) to add tracks from.";
             return;
         }
-        await QueueTrackAsync(_rootSid, row.ContainerCid, row.Mid, HeosQueueAddAction.Add);
+        await QueueTrackAsync(row.Sid, row.ContainerCid, row.Mid, HeosQueueAddAction.Add);
     }
 
-    private async Task QueueContainerAsync(int rootSid, string cid, HeosQueueAddAction action)
+    private async Task QueueContainerAsync(int sid, string cid, HeosQueueAddAction action)
     {
         try
         {
@@ -186,7 +186,7 @@ public partial class BrowseSourceWindow : Window
             var playersResp = await player.GetPlayersAsync();
             int? pid = ExtractFirstPid(playersResp);
             if (pid == null) { StatusText.Text = "No player PID."; return; }
-            var resp = await _browse.AddContainerToQueueAsync(pid.Value, rootSid, cid, action);
+            var resp = await _browse.AddContainerToQueueAsync(pid.Value, sid, cid, action);
             StatusText.Text = resp.Result?.Equals("success", StringComparison.OrdinalIgnoreCase) == true
                 ? "Queued container."
                 : $"Failed: {resp.Message}";
@@ -197,7 +197,7 @@ public partial class BrowseSourceWindow : Window
         }
     }
 
-    private async Task QueueTrackAsync(int rootSid, string cid, string mid, HeosQueueAddAction action)
+    private async Task QueueTrackAsync(int sid, string cid, string mid, HeosQueueAddAction action)
     {
         try
         {
@@ -207,7 +207,7 @@ public partial class BrowseSourceWindow : Window
             int? pid = ExtractFirstPid(playersResp);
             if (pid == null) { StatusText.Text = "No player PID."; return; }
 
-            var resp = await _browse.AddMediaToQueueAsync(pid.Value, rootSid, cid, mid, action);
+            var resp = await _browse.AddMediaToQueueAsync(pid.Value, sid, cid, mid, action);
             StatusText.Text = resp.Result?.Equals("success", StringComparison.OrdinalIgnoreCase) == true
                 ? "Queued track."
                 : $"Failed: {resp.Message}";
