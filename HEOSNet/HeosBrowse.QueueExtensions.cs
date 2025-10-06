@@ -35,11 +35,11 @@ public partial class HeosBrowse
             { "aid", action.ToAid() }
         };
         HeosCommand cmd = new("browse","add_to_queue", parameters);
-        string raw = await _client.SendCommandAsync(cmd.ToString());
+        string raw = await _client.SendCommandWithCompletionAsync(cmd); // container add usually quick but safe
         return new HeosResponse(raw);
     }
 
-    // Correct (spec 4.4.12) track add: requires BOTH cid (container context) and mid (track id)
+    // Track add: may emit intermediate frame -> use completion-aware send
     public async Task<HeosResponse> AddMediaToQueueAsync(int pid, int sid, string cid, string mid, HeosQueueAddAction action)
     {
         if (string.IsNullOrWhiteSpace(cid))
@@ -56,7 +56,7 @@ public partial class HeosBrowse
             { "aid", action.ToAid() }
         };
         HeosCommand cmd = new("browse","add_to_queue", parameters);
-        string raw = await _client.SendCommandAsync(cmd.ToString());
+        string raw = await _client.SendCommandWithCompletionAsync(cmd);
         return new HeosResponse(raw);
     }
 }

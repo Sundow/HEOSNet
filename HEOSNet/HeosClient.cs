@@ -12,7 +12,6 @@ namespace HEOSNet
         private TcpClient? _client;
         private NetworkStream? _stream;
 
-        // Synchronize command sends / receives so we correlate correct response
         private readonly SemaphoreSlim _sendLock = new(1, 1);
         private readonly StringBuilder _receiveBuffer = new();
         private readonly byte[] _readBuffer = new byte[8192];
@@ -62,35 +61,34 @@ namespace HEOSNet
             }
         }
 
-        public async Task<string> SendBrowseWithCompletionAsync(HeosCommand command, TimeSpan? overallTimeout = null)
+        // Generic completion-aware command (handles intermediate 'command under process')
+        public async Task<string> SendCommandWithCompletionAsync(HeosCommand command, TimeSpan? overallTimeout = null)
         {
             if (_stream == null) throw new InvalidOperationException("Client is not connected.");
-            overallTimeout ??= TimeSpan.FromSeconds(10);
+            overallTimeout ??= TimeSpan.FromSeconds(15);
+
+            string targetCommand = command.CommandGroup + "/" + command.Command;
 
             await _sendLock.WaitAsync();
             try
             {
                 using CancellationTokenSource cts = new(overallTimeout.Value);
-
                 string outbound = command.ToString();
                 outbound = outbound.EndsWith("\r\n", StringComparison.Ordinal) ? outbound : outbound + "\r\n";
                 byte[] commandBytes = Encoding.ASCII.GetBytes(outbound);
                 await _stream!.WriteAsync(commandBytes, cts.Token);
                 await _stream.FlushAsync(cts.Token);
 
-                string targetCommand = command.CommandGroup + "/" + command.Command;
-
                 while (true)
                 {
-                    if (TryExtractNextJson(_receiveBuffer, out string? json1))
+                    if (TryExtractNextJson(_receiveBuffer, out string? json))
                     {
-                        if (IsBrowseFinal(json1, targetCommand, out bool processingComplete))
+                        if (IsCommandResponse(json, targetCommand, out bool final))
                         {
-                            if (processingComplete)
-                                return json1!; // final response
-                            // else still processing, continue loop
+                            if (final) return json!; // final response for this command
+                            // intermediate -> continue reading
                         }
-                        // unrelated events are ignored
+                        // unrelated event discarded
                     }
 
                     int bytesRead = await _stream.ReadAsync(_readBuffer, cts.Token);
@@ -105,11 +103,14 @@ namespace HEOSNet
             }
         }
 
+        // Backwards compatibility wrapper (browse specific); now uses generic method.
+        public Task<string> SendBrowseWithCompletionAsync(HeosCommand command, TimeSpan? overallTimeout = null) =>
+            SendCommandWithCompletionAsync(command, overallTimeout);
+
         private static bool TryExtractNextJson(StringBuilder buffer, [NotNullWhen(true)] out string? json)
         {
             json = null;
-            if (buffer.Length == 0)
-                return false;
+            if (buffer.Length == 0) return false;
 
             int start = buffer.ToString().IndexOf('{');
             if (start < 0)
@@ -151,10 +152,10 @@ namespace HEOSNet
             return false;
         }
 
-        // Returns true if this JSON belongs to the browse command; processingComplete indicates final response
-        private static bool IsBrowseFinal(string json, string targetCommand, out bool processingComplete)
+        // Returns true if JSON corresponds to the target command; final indicates if processing finished.
+        private static bool IsCommandResponse(string json, string targetCommand, out bool final)
         {
-            processingComplete = false;
+            final = false;
             try
             {
                 using JsonDocument doc = JsonDocument.Parse(json);
@@ -162,17 +163,16 @@ namespace HEOSNet
                 if (!heos.TryGetProperty("command", out var cmdProp)) return false;
                 string? cmd = cmdProp.GetString();
                 if (!string.Equals(cmd, targetCommand, StringComparison.OrdinalIgnoreCase)) return false;
-
                 if (heos.TryGetProperty("message", out var msgProp))
                 {
                     string? msg = msgProp.GetString();
-                    if (msg != null && msg.Contains("command under process", StringComparison.OrdinalIgnoreCase))
+                    if (!string.IsNullOrEmpty(msg) && msg.Contains("command under process", StringComparison.OrdinalIgnoreCase))
                     {
-                        processingComplete = false; // intermediate
+                        final = false; // intermediate frame
                         return true;
                     }
                 }
-                processingComplete = true; // final (payload may be empty)
+                final = true;
                 return true;
             }
             catch
