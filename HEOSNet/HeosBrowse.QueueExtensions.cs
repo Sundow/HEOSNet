@@ -12,11 +12,11 @@ public static class HeosQueueAddActionExtensions
 {
     public static string ToAid(this HeosQueueAddAction v) => v switch
     {
-        HeosQueueAddAction.Add            => "add",
-        HeosQueueAddAction.PlayNow        => "play_now",
-        HeosQueueAddAction.PlayNext       => "play_next",
-        HeosQueueAddAction.ReplaceAndPlay => "replace_and_play",
-        _ => "add"
+        HeosQueueAddAction.PlayNow        => "1",
+        HeosQueueAddAction.PlayNext       => "2",
+        HeosQueueAddAction.Add            => "3",
+        HeosQueueAddAction.ReplaceAndPlay => "4",
+        _                                 => "3"
     };
 }
 
@@ -24,6 +24,9 @@ public partial class HeosBrowse
 {
     public async Task<HeosResponse> AddContainerToQueueAsync(int pid, int sid, string cid, HeosQueueAddAction action)
     {
+        if (string.IsNullOrWhiteSpace(cid))
+            throw new ArgumentException("cid is required for container queueing.", nameof(cid));
+
         Dictionary<string,string> parameters = new()
         {
             { "pid", pid.ToString() },
@@ -36,12 +39,19 @@ public partial class HeosBrowse
         return new HeosResponse(raw);
     }
 
-    public async Task<HeosResponse> AddMediaToQueueAsync(int pid, int sid, string mid, HeosQueueAddAction action)
+    // Correct (spec 4.4.12) track add: requires BOTH cid (container context) and mid (track id)
+    public async Task<HeosResponse> AddMediaToQueueAsync(int pid, int sid, string cid, string mid, HeosQueueAddAction action)
     {
+        if (string.IsNullOrWhiteSpace(cid))
+            throw new ArgumentException("cid (container id) is required for adding a track.", nameof(cid));
+        if (string.IsNullOrWhiteSpace(mid))
+            throw new ArgumentException("mid (media id) is required for adding a track.", nameof(mid));
+
         Dictionary<string,string> parameters = new()
         {
             { "pid", pid.ToString() },
             { "sid", sid.ToString() },
+            { "cid", cid },
             { "mid", mid },
             { "aid", action.ToAid() }
         };

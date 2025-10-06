@@ -12,8 +12,8 @@ public partial class BrowseSourceWindow : Window
 
     private class Node
     {
-        public required int EffectiveSid { get; init; }   // sid to use in browse
-        public string? Cid { get; init; }                 // null => this node is a sid-only server root
+        public required int EffectiveSid { get; init; }
+        public string? Cid { get; init; }
         public required string Name { get; init; }
         public bool Loaded { get; set; }
         public TreeViewItem? TreeItem { get; set; }
@@ -49,15 +49,13 @@ public partial class BrowseSourceWindow : Window
                 parent.TreeItem!.Items.Clear();
 
             foreach (var c in kids.Where(k => k.IsContainer))
-            {
                 AddTreeItem(parent, c);
-            }
 
-            // Show media for root level (optional, keep consistent)
             if (parent == null)
             {
+                // Root-level media rows: we have no container cid context -> disable track add until a folder selected
                 ItemsList.ItemsSource = kids.Where(k => k.IsMedia)
-                    .Select(m => new MediaRow(m.Name, m.Id, m.Playable, sid));
+                    .Select(m => new MediaRow(m.Name, m.Id, m.Playable, sid, null));
             }
 
             StatusText.Text = $"Containers: {(parent == null ? FoldersTree.Items.Count : parent.TreeItem!.Items.Count)}, Tracks: {kids.Count(k => k.IsMedia)}";
@@ -66,9 +64,10 @@ public partial class BrowseSourceWindow : Window
         {
             StatusText.Text = "Error: " + ex.Message;
         }
+        UpdateButtons();
     }
 
-    private record MediaRow(string Name, string Mid, bool Playable, int Sid)
+    private record MediaRow(string Name, string Mid, bool Playable, int Sid, string? ContainerCid)
     {
         public string Kind => "Track";
     }
@@ -78,7 +77,7 @@ public partial class BrowseSourceWindow : Window
         Node node = new()
         {
             EffectiveSid = item.SourceSid,
-            Cid = string.IsNullOrEmpty(item.Id) ? null : item.Id, // empty id => sid-only server
+            Cid = string.IsNullOrEmpty(item.Id) ? null : item.Id,
             Name = item.Name
         };
         TreeViewItem tvi = new() { Header = node.Name, Tag = node };
@@ -106,17 +105,17 @@ public partial class BrowseSourceWindow : Window
     {
         try
         {
-            // For sid-only server root we pass only sid (cid null)
             var resp = await _browse.BrowseAsync(node.EffectiveSid, node.Cid);
             var kids = HeosBrowse.ParseBrowseChildren(node.EffectiveSid, resp);
             ItemsList.ItemsSource = kids.Where(k => k.IsMedia)
-                .Select(m => new MediaRow(m.Name, m.Id, m.Playable, node.EffectiveSid));
+                .Select(m => new MediaRow(m.Name, m.Id, m.Playable, node.EffectiveSid, node.Cid));
             StatusText.Text = $"Tracks: {kids.Count(k => k.IsMedia)}";
         }
         catch (Exception ex)
         {
             StatusText.Text = "Error: " + ex.Message;
         }
+        UpdateButtons();
     }
 
     private void FoldersTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -139,7 +138,8 @@ public partial class BrowseSourceWindow : Window
             AddContainerButton.IsEnabled = false;
             ReplaceAndPlayButton.IsEnabled = false;
         }
-        AddTrackButton.IsEnabled = ItemsList.SelectedItem is MediaRow;
+
+        AddTrackButton.IsEnabled = ItemsList.SelectedItem is MediaRow mr && !string.IsNullOrEmpty(mr.ContainerCid);
     }
 
     private void ItemsList_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateButtons();
@@ -149,10 +149,10 @@ public partial class BrowseSourceWindow : Window
         if (FoldersTree.SelectedItem is not TreeViewItem tvi || tvi.Tag is not Node node) return;
         if (node.IsSidOnly || string.IsNullOrEmpty(node.Cid))
         {
-            StatusText.Text = "Select a folder (not server root) to queue.";
+            StatusText.Text = "Select a folder to queue.";
             return;
         }
-        await QueueContainerAsync(node.EffectiveSid, node.Cid, HeosQueueAddAction.Add);
+        await QueueContainerAsync(_rootSid, node.Cid, HeosQueueAddAction.Add);
     }
 
     private async void ReplaceAndPlayButton_Click(object sender, RoutedEventArgs e)
@@ -160,19 +160,24 @@ public partial class BrowseSourceWindow : Window
         if (FoldersTree.SelectedItem is not TreeViewItem tvi || tvi.Tag is not Node node) return;
         if (node.IsSidOnly || string.IsNullOrEmpty(node.Cid))
         {
-            StatusText.Text = "Select a folder (not server root) to replace & play.";
+            StatusText.Text = "Select a folder to replace & play.";
             return;
         }
-        await QueueContainerAsync(node.EffectiveSid, node.Cid, HeosQueueAddAction.ReplaceAndPlay);
+        await QueueContainerAsync(_rootSid, node.Cid, HeosQueueAddAction.ReplaceAndPlay);
     }
 
     private async void AddTrackButton_Click(object sender, RoutedEventArgs e)
     {
         if (ItemsList.SelectedItem is not MediaRow row) return;
-        await QueueTrackAsync(row.Sid, row.Mid, HeosQueueAddAction.Add);
+        if (string.IsNullOrEmpty(row.ContainerCid))
+        {
+            StatusText.Text = "Select a folder (not root) to add tracks from.";
+            return;
+        }
+        await QueueTrackAsync(_rootSid, row.ContainerCid, row.Mid, HeosQueueAddAction.Add);
     }
 
-    private async Task QueueContainerAsync(int sid, string cid, HeosQueueAddAction action)
+    private async Task QueueContainerAsync(int rootSid, string cid, HeosQueueAddAction action)
     {
         try
         {
@@ -181,13 +186,18 @@ public partial class BrowseSourceWindow : Window
             var playersResp = await player.GetPlayersAsync();
             int? pid = ExtractFirstPid(playersResp);
             if (pid == null) { StatusText.Text = "No player PID."; return; }
-            await _browse.AddContainerToQueueAsync(pid.Value, sid, cid, action);
-            StatusText.Text = "Queued container.";
+            var resp = await _browse.AddContainerToQueueAsync(pid.Value, rootSid, cid, action);
+            StatusText.Text = resp.Result?.Equals("success", StringComparison.OrdinalIgnoreCase) == true
+                ? "Queued container."
+                : $"Failed: {resp.Message}";
         }
-        catch (Exception ex) { StatusText.Text = "Error: " + ex.Message; }
+        catch (Exception ex)
+        {
+            StatusText.Text = "Error: " + ex.Message;
+        }
     }
 
-    private async Task QueueTrackAsync(int sid, string mid, HeosQueueAddAction action)
+    private async Task QueueTrackAsync(int rootSid, string cid, string mid, HeosQueueAddAction action)
     {
         try
         {
@@ -196,10 +206,16 @@ public partial class BrowseSourceWindow : Window
             var playersResp = await player.GetPlayersAsync();
             int? pid = ExtractFirstPid(playersResp);
             if (pid == null) { StatusText.Text = "No player PID."; return; }
-            await _browse.AddMediaToQueueAsync(pid.Value, sid, mid, action);
-            StatusText.Text = "Queued track.";
+
+            var resp = await _browse.AddMediaToQueueAsync(pid.Value, rootSid, cid, mid, action);
+            StatusText.Text = resp.Result?.Equals("success", StringComparison.OrdinalIgnoreCase) == true
+                ? "Queued track."
+                : $"Failed: {resp.Message}";
         }
-        catch (Exception ex) { StatusText.Text = "Error: " + ex.Message; }
+        catch (Exception ex)
+        {
+            StatusText.Text = "Error: " + ex.Message;
+        }
     }
 
     private static int? ExtractFirstPid(HeosResponse resp)

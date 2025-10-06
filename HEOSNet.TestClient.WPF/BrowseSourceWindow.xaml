@@ -19,7 +19,7 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <TreeView x:Name="FoldersTree" SelectedItemChanged="FoldersTree_SelectedItemChanged"/>
-            <ListView x:Name="ItemsList" Grid.Column="1" SelectionMode="Single">
+            <ListView x:Name="ItemsList" Grid.Column="1" SelectionMode="Single" SelectionChanged="ItemsList_SelectionChanged">
                 <ListView.View>
                     <GridView>
                         <GridViewColumn Header="Name" Width="220" DisplayMemberBinding="{Binding Name}"/>
